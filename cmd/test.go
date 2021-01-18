@@ -25,6 +25,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/crypto/ssh"
 )
 
 // testCmd represents the test command
@@ -37,21 +38,67 @@ and usage of using your command. For example:
 Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("test called")
-	},
+	Run: doTest,
 }
 
 func init() {
 	rootCmd.AddCommand(testCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// testCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// testCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
+
+func doTest(cmd *cobra.Command, args []string) {
+	fmt.Println("Starting test")
+
+	startPort, err := rootCmd.PersistentFlags().GetString("startPort")
+	if err != nil {
+		panic(err)
+	}
+
+	host, err := rootCmd.PersistentFlags().GetString("host")
+	if err != nil {
+		panic(err)
+	}
+
+	client, session, err := connectToHost("test", host+":"+startPort)
+	if err != nil {
+		panic(err)
+	}
+	out, err := session.CombinedOutput("hostname -I | awk '{print $1}'")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(string(out))
+	client.Close()
+}
+
+func connectToHost(user, host string) (*ssh.Client, *ssh.Session, error) {
+	pass := "test"
+
+	sshConfig := &ssh.ClientConfig{
+		User: user,
+		Auth: []ssh.AuthMethod{ssh.Password(pass)},
+	}
+	sshConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+
+	client, err := ssh.Dial("tcp", host, sshConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	session, err := client.NewSession()
+	if err != nil {
+		client.Close()
+		return nil, nil, err
+	}
+
+	return client, session, nil
+}
+
+// osCmd := exec.Command("tr", "a-z", "A-Z")
+// osCmd.Stdin = strings.NewReader("some input")
+// var out bytes.Buffer
+// osCmd.Stdout = &out
+// err := osCmd.Run()
+// if err != nil {
+// 	log.Fatal(err)
+// }
+// fmt.Printf("in all caps: %q\n", out.String())
