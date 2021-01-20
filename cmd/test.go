@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -100,6 +101,10 @@ func doTest(cmd *cobra.Command, args []string) {
 	wg.Wait()
 	time.Sleep(1000)
 	close(resultsChannel)
+
+	sort.SliceStable(results, func(i, j int) bool {
+		return results[i].targetID < results[j].targetID
+	})
 
 	fmt.Printf("\nOutput\n")
 	for r := range results {
