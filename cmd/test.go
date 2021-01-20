@@ -29,7 +29,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
@@ -86,10 +85,8 @@ func doTest(cmd *cobra.Command, args []string) {
 	var wg sync.WaitGroup
 
 	for t := 0; t < len(targets); t++ {
-		for c := 0; c < len(commands); c++ {
-			wg.Add(1)
-			go execCommand(t, "test", targets[t], commands[c], &wg, resultsChannel)
-		}
+		wg.Add(1)
+		go execCommands(t, "test", targets[t], commands, &wg, resultsChannel)
 	}
 
 	go func() {
@@ -99,7 +96,6 @@ func doTest(cmd *cobra.Command, args []string) {
 	}()
 
 	wg.Wait()
-	time.Sleep(1000)
 	close(resultsChannel)
 
 	sort.SliceStable(results, func(i, j int) bool {
@@ -112,30 +108,40 @@ func doTest(cmd *cobra.Command, args []string) {
 	}
 }
 
-func execCommand(targetID int, user, host, command string, wg *sync.WaitGroup, resultsChannel chan output) {
+func execCommands(targetID int, user string, host string, commands []string, wg *sync.WaitGroup, resultsChannel chan output) {
 	defer wg.Done()
 
-	client, session, err := connectToHost(user, host)
-	if err != nil {
-		log.Fatal(err)
-	}
-	out, err := session.CombinedOutput(command)
+	client, err := connectToHost(user, host)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	output := output{
-		targetID: targetID,
-		host:     host,
-		command:  command,
-		output:   string(out),
+	for c := 0; c < len(commands); c++ {
+		session, err := client.NewSession()
+		if err != nil {
+			client.Close()
+			panic(err)
+		}
+
+		out, err := session.CombinedOutput(commands[c])
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		output := output{
+			targetID: targetID,
+			host:     host,
+			command:  commands[c],
+			output:   string(out),
+		}
+
+		resultsChannel <- output
 	}
 
-	resultsChannel <- output
 	client.Close()
 }
 
-func connectToHost(user, host string) (*ssh.Client, *ssh.Session, error) {
+func connectToHost(user, host string) (*ssh.Client, error) {
 	pass := "test"
 
 	sshConfig := &ssh.ClientConfig{
@@ -146,16 +152,10 @@ func connectToHost(user, host string) (*ssh.Client, *ssh.Session, error) {
 
 	client, err := ssh.Dial("tcp", host, sshConfig)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	session, err := client.NewSession()
-	if err != nil {
-		client.Close()
-		return nil, nil, err
-	}
-
-	return client, session, nil
+	return client, nil
 }
 
 func getTargets() []string {
