@@ -35,10 +35,19 @@ import (
 )
 
 type output struct {
-	host       string
-	command    string
-	output     string
-	tempOutput string
+	targetID int
+	host     string
+	command  string
+	output   string
+}
+
+func (o output) String() string {
+	separator, err := rootCmd.PersistentFlags().GetString("separator")
+	if err != nil {
+		panic(err)
+	}
+
+	return fmt.Sprintf("%s %s %s %s %s", o.host, separator, o.command, separator, o.output)
 }
 
 // testCmd represents the test command
@@ -71,14 +80,14 @@ func doTest(cmd *cobra.Command, args []string) {
 		fmt.Println(command)
 	}
 
-	var results []string
-	resultsChannel := make(chan string)
+	var results []output
+	resultsChannel := make(chan output)
 	var wg sync.WaitGroup
 
 	for t := 0; t < len(targets); t++ {
 		for c := 0; c < len(commands); c++ {
 			wg.Add(1)
-			go execCommand("test", targets[t], commands[c], &wg, resultsChannel)
+			go execCommand(t, "test", targets[t], commands[c], &wg, resultsChannel)
 		}
 	}
 
@@ -98,7 +107,7 @@ func doTest(cmd *cobra.Command, args []string) {
 	}
 }
 
-func execCommand(user, host, command string, wg *sync.WaitGroup, resultsChannel chan string) {
+func execCommand(targetID int, user, host, command string, wg *sync.WaitGroup, resultsChannel chan output) {
 	defer wg.Done()
 
 	client, session, err := connectToHost(user, host)
@@ -110,12 +119,13 @@ func execCommand(user, host, command string, wg *sync.WaitGroup, resultsChannel 
 		log.Fatal(err)
 	}
 
-	separator, err := rootCmd.PersistentFlags().GetString("separator")
-	if err != nil {
-		panic(err)
+	output := output{
+		targetID: targetID,
+		host:     host,
+		command:  command,
+		output:   string(out),
 	}
 
-	output := fmt.Sprintf("%s %s %s %s %s", host, separator, command, separator, string(out))
 	resultsChannel <- output
 	client.Close()
 }
