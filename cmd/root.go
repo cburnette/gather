@@ -32,9 +32,10 @@ import (
 )
 
 var (
-	cfgFile   string
-	host      string
-	startPort string
+	cfgFile     string
+	targetFile  string
+	commandFile string
+	separator   string
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -69,8 +70,9 @@ func init() {
 	// will be global for your application.
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gather.yaml)")
-	rootCmd.PersistentFlags().StringVar(&host, "host", "0.0.0.0", "host to make SSH connection to")
-	rootCmd.PersistentFlags().StringVar(&startPort, "startPort", "55000", "port to start with and then increase by one for each server")
+	rootCmd.PersistentFlags().StringVar(&targetFile, "targets", "targets.txt", "path to file containing list of target devices")
+	rootCmd.PersistentFlags().StringVar(&commandFile, "commands", "commands.txt", "path to file containing list of commands to run on target devices")
+	rootCmd.PersistentFlags().StringVar(&separator, "separator", "|", "separator between host, command and output")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.

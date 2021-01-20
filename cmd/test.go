@@ -22,11 +22,24 @@ THE SOFTWARE.
 package cmd
 
 import (
+	"bufio"
 	"fmt"
+	"log"
+	"os"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
 )
+
+type output struct {
+	host       string
+	command    string
+	output     string
+	tempOutput string
+}
 
 // testCmd represents the test command
 var testCmd = &cobra.Command{
@@ -46,27 +59,64 @@ func init() {
 }
 
 func doTest(cmd *cobra.Command, args []string) {
-	fmt.Println("Starting test")
-
-	startPort, err := rootCmd.PersistentFlags().GetString("startPort")
-	if err != nil {
-		panic(err)
+	targets := getTargets()
+	fmt.Printf("Targets:\n")
+	for _, target := range targets {
+		fmt.Println(target)
 	}
 
-	host, err := rootCmd.PersistentFlags().GetString("host")
+	commands := getCommands()
+	fmt.Printf("\nCommands:\n")
+	for _, command := range commands {
+		fmt.Println(command)
+	}
+
+	var results []string
+	resultsChannel := make(chan string)
+	var wg sync.WaitGroup
+
+	for t := 0; t < len(targets); t++ {
+		for c := 0; c < len(commands); c++ {
+			wg.Add(1)
+			go execCommand("test", targets[t], commands[c], &wg, resultsChannel)
+		}
+	}
+
+	go func() {
+		for v := range resultsChannel {
+			results = append(results, v)
+		}
+	}()
+
+	wg.Wait()
+	time.Sleep(1000)
+	close(resultsChannel)
+
+	fmt.Printf("\nOutput\n")
+	for r := range results {
+		fmt.Print(results[r])
+	}
+}
+
+func execCommand(user, host, command string, wg *sync.WaitGroup, resultsChannel chan string) {
+	defer wg.Done()
+
+	client, session, err := connectToHost(user, host)
+	if err != nil {
+		log.Fatal(err)
+	}
+	out, err := session.CombinedOutput(command)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	separator, err := rootCmd.PersistentFlags().GetString("separator")
 	if err != nil {
 		panic(err)
 	}
 
-	client, session, err := connectToHost("test", host+":"+startPort)
-	if err != nil {
-		panic(err)
-	}
-	out, err := session.CombinedOutput("hostname -I | awk '{print $1}'")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(string(out))
+	output := fmt.Sprintf("%s %s %s %s %s", host, separator, command, separator, string(out))
+	resultsChannel <- output
 	client.Close()
 }
 
@@ -93,12 +143,56 @@ func connectToHost(user, host string) (*ssh.Client, *ssh.Session, error) {
 	return client, session, nil
 }
 
-// osCmd := exec.Command("tr", "a-z", "A-Z")
-// osCmd.Stdin = strings.NewReader("some input")
-// var out bytes.Buffer
-// osCmd.Stdout = &out
-// err := osCmd.Run()
-// if err != nil {
-// 	log.Fatal(err)
-// }
-// fmt.Printf("in all caps: %q\n", out.String())
+func getTargets() []string {
+	targetFile, err := rootCmd.PersistentFlags().GetString("targets")
+	if err != nil {
+		panic(err)
+	}
+
+	file, err := os.Open(targetFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+	var targets []string
+
+	for scanner.Scan() {
+		target := scanner.Text()
+		if !strings.HasPrefix(target, "#") {
+			parts := strings.Split(target, ":")
+			if len(parts) == 1 {
+				target = target + ":22"
+			}
+			targets = append(targets, target)
+		}
+	}
+
+	return targets
+}
+
+func getCommands() []string {
+	commandFile, err := rootCmd.PersistentFlags().GetString("commands")
+	if err != nil {
+		panic(err)
+	}
+
+	file, err := os.Open(commandFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+	var commands []string
+
+	for scanner.Scan() {
+		command := scanner.Text()
+		if !strings.HasPrefix(command, "#") {
+			commands = append(commands, command)
+		}
+	}
+
+	return commands
+}
