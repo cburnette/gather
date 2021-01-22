@@ -108,9 +108,9 @@ func execCommands(deviceID int, user string, password string, device string, com
 				output:   "error connecting to device",
 			}
 			resultsChannel <- output
+			wg.Done()
 		}
 		log.Printf("error connecting to device %s", device)
-		wg.Done()
 		return
 	}
 
