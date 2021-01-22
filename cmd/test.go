@@ -1,24 +1,3 @@
-/*
-Copyright © 2021 Hiarc <support@hiarcdb.com>
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-*/
 package cmd
 
 import (
@@ -113,19 +92,35 @@ func execCommands(targetID int, user string, host string, commands []string, wg 
 
 	client, err := connectToHost(user, host)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("error connecting to device %s", host)
 	}
+	defer client.Close()
 
 	for c := 0; c < len(commands); c++ {
 		session, err := client.NewSession()
 		if err != nil {
-			client.Close()
-			panic(err)
+			output := output{
+				targetID: targetID,
+				host:     host,
+				command:  commands[c],
+				output:   "error creating session",
+			}
+			resultsChannel <- output
+			log.Printf("error creating session for command %s on device %s", commands[c], host)
+			continue
 		}
 
 		out, err := session.CombinedOutput(commands[c])
 		if err != nil {
-			log.Fatal(err)
+			output := output{
+				targetID: targetID,
+				host:     host,
+				command:  commands[c],
+				output:   "error executing command",
+			}
+			resultsChannel <- output
+			log.Printf("error executing command %s on device %s", commands[c], host)
+			continue
 		}
 
 		output := output{
@@ -137,8 +132,6 @@ func execCommands(targetID int, user string, host string, commands []string, wg 
 
 		resultsChannel <- output
 	}
-
-	client.Close()
 }
 
 func connectToHost(user, host string) (*ssh.Client, error) {
