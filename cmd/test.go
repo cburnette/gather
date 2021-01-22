@@ -65,6 +65,7 @@ func doTest(cmd *cobra.Command, args []string) {
 	resultsChannel := make(chan output)
 	var wg sync.WaitGroup
 
+	wg.Add(len(devices))
 	for t := 0; t < len(devices); t++ {
 		go execCommands(t, user, string(password), devices[t], commands, &wg, resultsChannel)
 	}
@@ -95,12 +96,11 @@ func doTest(cmd *cobra.Command, args []string) {
 }
 
 func execCommands(deviceID int, user string, password string, device string, commands []string, wg *sync.WaitGroup, resultsChannel chan output) {
-	//defer wg.Done()
+	defer wg.Done()
 
 	client, err := connectToDevice(user, password, device)
 	if err != nil {
 		for c := 0; c < len(commands); c++ {
-			wg.Add(1)
 			output := output{
 				deviceID: deviceID,
 				device:   device,
@@ -108,7 +108,6 @@ func execCommands(deviceID int, user string, password string, device string, com
 				output:   "error connecting to device",
 			}
 			resultsChannel <- output
-			wg.Done()
 		}
 		log.Printf("error connecting to device %s", device)
 		return
@@ -117,7 +116,6 @@ func execCommands(deviceID int, user string, password string, device string, com
 	defer client.Close()
 
 	for c := 0; c < len(commands); c++ {
-		wg.Add(1)
 		session, err := client.NewSession()
 
 		if err != nil {
@@ -130,7 +128,6 @@ func execCommands(deviceID int, user string, password string, device string, com
 			resultsChannel <- output
 			log.Printf("error creating session for command %s on device %s", commands[c], device)
 			session.Close()
-			wg.Done()
 			continue
 		}
 
@@ -145,7 +142,6 @@ func execCommands(deviceID int, user string, password string, device string, com
 			resultsChannel <- output
 			log.Printf("error executing command %s on device %s", commands[c], device)
 			session.Close()
-			wg.Done()
 			continue
 		}
 
@@ -158,7 +154,6 @@ func execCommands(deviceID int, user string, password string, device string, com
 
 		resultsChannel <- output
 		session.Close()
-		wg.Done()
 	}
 }
 
