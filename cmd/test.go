@@ -55,7 +55,7 @@ func doTest(cmd *cobra.Command, args []string) {
 	fmt.Print("\nuser: ")
 	fmt.Scanf("%s", &user)
 
-	fmt.Println("password: ")
+	fmt.Print("password: ")
 	password, err := terminal.ReadPassword(0)
 	if err != nil {
 		panic(err)
