@@ -76,7 +76,10 @@ func doTest(cmd *cobra.Command, args []string) {
 		}
 	}()
 
-	wg.Wait()
+	for len(results) <= len(devices) {
+		wg.Wait()
+	}
+
 	close(resultsChannel)
 
 	sort.SliceStable(results, func(i, j int) bool {
