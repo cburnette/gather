@@ -83,7 +83,7 @@ func doTest(cmd *cobra.Command, args []string) {
 		return results[i].deviceID < results[j].deviceID
 	})
 
-	fmt.Printf("\nOutput\n")
+	fmt.Printf("\n\nOutput\n")
 	for r := range results {
 		scanner := bufio.NewScanner(strings.NewReader(results[r].output))
 		for scanner.Scan() {
