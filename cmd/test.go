@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 type output struct {
@@ -51,12 +52,14 @@ func doTest(cmd *cobra.Command, args []string) {
 	}
 
 	var user string
-	fmt.Print("user: ")
+	fmt.Print("\nuser: ")
 	fmt.Scanf("%s", &user)
 
-	var password string
-	fmt.Print("password: ")
-	fmt.Scanf("%s", &password)
+	fmt.Println("password: ")
+	password, err := terminal.ReadPassword(0)
+	if err != nil {
+		panic(err)
+	}
 
 	var results []output
 	resultsChannel := make(chan output)
@@ -64,7 +67,7 @@ func doTest(cmd *cobra.Command, args []string) {
 
 	for t := 0; t < len(devices); t++ {
 		wg.Add(1)
-		go execCommands(t, user, password, devices[t], commands, &wg, resultsChannel)
+		go execCommands(t, user, string(password), devices[t], commands, &wg, resultsChannel)
 	}
 
 	go func() {
@@ -111,6 +114,7 @@ func execCommands(deviceID int, user string, password string, device string, com
 
 	for c := 0; c < len(commands); c++ {
 		session, err := client.NewSession()
+
 		if err != nil {
 			output := output{
 				deviceID: deviceID,
@@ -120,6 +124,7 @@ func execCommands(deviceID int, user string, password string, device string, com
 			}
 			resultsChannel <- output
 			log.Printf("error creating session for command %s on device %s", commands[c], device)
+			session.Close()
 			continue
 		}
 
@@ -133,6 +138,7 @@ func execCommands(deviceID int, user string, password string, device string, com
 			}
 			resultsChannel <- output
 			log.Printf("error executing command %s on device %s", commands[c], device)
+			session.Close()
 			continue
 		}
 
@@ -144,12 +150,11 @@ func execCommands(deviceID int, user string, password string, device string, com
 		}
 
 		resultsChannel <- output
+		session.Close()
 	}
 }
 
 func connectToDevice(user, password, device string) (*ssh.Client, error) {
-	//pass := "test"
-
 	sshConfig := &ssh.ClientConfig{
 		User: user,
 		Auth: []ssh.AuthMethod{ssh.Password(password)},
