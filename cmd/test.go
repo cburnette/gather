@@ -95,11 +95,12 @@ func doTest(cmd *cobra.Command, args []string) {
 }
 
 func execCommands(deviceID int, user string, password string, device string, commands []string, wg *sync.WaitGroup, resultsChannel chan output) {
-	defer wg.Done()
+	//defer wg.Done()
 
 	client, err := connectToDevice(user, password, device)
 	if err != nil {
 		for c := 0; c < len(commands); c++ {
+			wg.Add(1)
 			output := output{
 				deviceID: deviceID,
 				device:   device,
@@ -109,6 +110,7 @@ func execCommands(deviceID int, user string, password string, device string, com
 			resultsChannel <- output
 		}
 		log.Printf("error connecting to device %s", device)
+		wg.Done()
 		return
 	}
 
