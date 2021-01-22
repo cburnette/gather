@@ -76,7 +76,7 @@ func doTest(cmd *cobra.Command, args []string) {
 		}
 	}()
 
-	for len(results) <= len(devices) {
+	for len(results) < len(devices)*len(commands) {
 		wg.Wait()
 	}
 
