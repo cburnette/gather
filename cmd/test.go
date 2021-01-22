@@ -92,8 +92,19 @@ func execCommands(deviceID int, user string, device string, commands []string, w
 
 	client, err := connectToDevice(user, device)
 	if err != nil {
+		for c := 0; c < len(commands); c++ {
+			output := output{
+				deviceID: deviceID,
+				device:   device,
+				command:  commands[c],
+				output:   "error connecting to device",
+			}
+			resultsChannel <- output
+		}
 		log.Printf("error connecting to device %s", device)
+		return
 	}
+
 	defer client.Close()
 
 	for c := 0; c < len(commands); c++ {
