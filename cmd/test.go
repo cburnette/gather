@@ -20,15 +20,6 @@ type output struct {
 	output   string
 }
 
-func (o output) String() string {
-	separator, err := rootCmd.PersistentFlags().GetString("separator")
-	if err != nil {
-		panic(err)
-	}
-
-	return fmt.Sprintf("%s %s %s %s %s", o.device, separator, o.command, separator, o.output)
-}
-
 // testCmd represents the test command
 var testCmd = &cobra.Command{
 	Use:   "test",
@@ -83,7 +74,10 @@ func doTest(cmd *cobra.Command, args []string) {
 
 	fmt.Printf("\nOutput\n")
 	for r := range results {
-		fmt.Print(results[r])
+		scanner := bufio.NewScanner(strings.NewReader(results[r].output))
+		for scanner.Scan() {
+			fmt.Printf("%s %s %s %s %s\n", results[r].device, separator, results[r].command, separator, scanner.Text())
+		}
 	}
 }
 
