@@ -6,7 +6,7 @@
 *.dylib
 gather
 
-targets.txt
+devices.txt
 commands.txt
 
 # Test binary, built with `go test -c`

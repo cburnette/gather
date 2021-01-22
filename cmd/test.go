@@ -14,8 +14,8 @@ import (
 )
 
 type output struct {
-	targetID int
-	host     string
+	deviceID int
+	device   string
 	command  string
 	output   string
 }
@@ -26,7 +26,7 @@ func (o output) String() string {
 		panic(err)
 	}
 
-	return fmt.Sprintf("%s %s %s %s %s", o.host, separator, o.command, separator, o.output)
+	return fmt.Sprintf("%s %s %s %s %s", o.device, separator, o.command, separator, o.output)
 }
 
 // testCmd represents the test command
@@ -47,10 +47,10 @@ func init() {
 }
 
 func doTest(cmd *cobra.Command, args []string) {
-	targets := getTargets()
-	fmt.Printf("Targets:\n")
-	for _, target := range targets {
-		fmt.Println(target)
+	devices := getDevices()
+	fmt.Printf("Devices:\n")
+	for _, device := range devices {
+		fmt.Println(device)
 	}
 
 	commands := getCommands()
@@ -63,9 +63,9 @@ func doTest(cmd *cobra.Command, args []string) {
 	resultsChannel := make(chan output)
 	var wg sync.WaitGroup
 
-	for t := 0; t < len(targets); t++ {
+	for t := 0; t < len(devices); t++ {
 		wg.Add(1)
-		go execCommands(t, "test", targets[t], commands, &wg, resultsChannel)
+		go execCommands(t, "test", devices[t], commands, &wg, resultsChannel)
 	}
 
 	go func() {
@@ -78,7 +78,7 @@ func doTest(cmd *cobra.Command, args []string) {
 	close(resultsChannel)
 
 	sort.SliceStable(results, func(i, j int) bool {
-		return results[i].targetID < results[j].targetID
+		return results[i].deviceID < results[j].deviceID
 	})
 
 	fmt.Printf("\nOutput\n")
@@ -87,12 +87,12 @@ func doTest(cmd *cobra.Command, args []string) {
 	}
 }
 
-func execCommands(targetID int, user string, host string, commands []string, wg *sync.WaitGroup, resultsChannel chan output) {
+func execCommands(deviceID int, user string, device string, commands []string, wg *sync.WaitGroup, resultsChannel chan output) {
 	defer wg.Done()
 
-	client, err := connectToHost(user, host)
+	client, err := connectToDevice(user, device)
 	if err != nil {
-		log.Printf("error connecting to device %s", host)
+		log.Printf("error connecting to device %s", device)
 	}
 	defer client.Close()
 
@@ -100,32 +100,32 @@ func execCommands(targetID int, user string, host string, commands []string, wg 
 		session, err := client.NewSession()
 		if err != nil {
 			output := output{
-				targetID: targetID,
-				host:     host,
+				deviceID: deviceID,
+				device:   device,
 				command:  commands[c],
 				output:   "error creating session",
 			}
 			resultsChannel <- output
-			log.Printf("error creating session for command %s on device %s", commands[c], host)
+			log.Printf("error creating session for command %s on device %s", commands[c], device)
 			continue
 		}
 
 		out, err := session.CombinedOutput(commands[c])
 		if err != nil {
 			output := output{
-				targetID: targetID,
-				host:     host,
+				deviceID: deviceID,
+				device:   device,
 				command:  commands[c],
 				output:   "error executing command",
 			}
 			resultsChannel <- output
-			log.Printf("error executing command %s on device %s", commands[c], host)
+			log.Printf("error executing command %s on device %s", commands[c], device)
 			continue
 		}
 
 		output := output{
-			targetID: targetID,
-			host:     host,
+			deviceID: deviceID,
+			device:   device,
 			command:  commands[c],
 			output:   string(out),
 		}
@@ -134,7 +134,7 @@ func execCommands(targetID int, user string, host string, commands []string, wg 
 	}
 }
 
-func connectToHost(user, host string) (*ssh.Client, error) {
+func connectToDevice(user, device string) (*ssh.Client, error) {
 	pass := "test"
 
 	sshConfig := &ssh.ClientConfig{
@@ -143,7 +143,7 @@ func connectToHost(user, host string) (*ssh.Client, error) {
 	}
 	sshConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 
-	client, err := ssh.Dial("tcp", host, sshConfig)
+	client, err := ssh.Dial("tcp", device, sshConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -151,33 +151,33 @@ func connectToHost(user, host string) (*ssh.Client, error) {
 	return client, nil
 }
 
-func getTargets() []string {
-	targetFile, err := rootCmd.PersistentFlags().GetString("targets")
+func getDevices() []string {
+	deviceFile, err := rootCmd.PersistentFlags().GetString("devices")
 	if err != nil {
 		panic(err)
 	}
 
-	file, err := os.Open(targetFile)
+	file, err := os.Open(deviceFile)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
-	var targets []string
+	var devices []string
 
 	for scanner.Scan() {
-		target := scanner.Text()
-		if !strings.HasPrefix(target, "#") {
-			parts := strings.Split(target, ":")
+		device := scanner.Text()
+		if !strings.HasPrefix(device, "#") {
+			parts := strings.Split(device, ":")
 			if len(parts) == 1 {
-				target = target + ":22"
+				device = device + ":22"
 			}
-			targets = append(targets, target)
+			devices = append(devices, device)
 		}
 	}
 
-	return targets
+	return devices
 }
 
 func getCommands() []string {
