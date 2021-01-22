@@ -50,13 +50,21 @@ func doTest(cmd *cobra.Command, args []string) {
 		fmt.Println(command)
 	}
 
+	var user string
+	fmt.Print("user: ")
+	fmt.Scanf("%s", &user)
+
+	var password string
+	fmt.Print("password: ")
+	fmt.Scanf("%s", &password)
+
 	var results []output
 	resultsChannel := make(chan output)
 	var wg sync.WaitGroup
 
 	for t := 0; t < len(devices); t++ {
 		wg.Add(1)
-		go execCommands(t, "test", devices[t], commands, &wg, resultsChannel)
+		go execCommands(t, user, password, devices[t], commands, &wg, resultsChannel)
 	}
 
 	go func() {
@@ -81,10 +89,10 @@ func doTest(cmd *cobra.Command, args []string) {
 	}
 }
 
-func execCommands(deviceID int, user string, device string, commands []string, wg *sync.WaitGroup, resultsChannel chan output) {
+func execCommands(deviceID int, user string, password string, device string, commands []string, wg *sync.WaitGroup, resultsChannel chan output) {
 	defer wg.Done()
 
-	client, err := connectToDevice(user, device)
+	client, err := connectToDevice(user, password, device)
 	if err != nil {
 		for c := 0; c < len(commands); c++ {
 			output := output{
@@ -139,12 +147,12 @@ func execCommands(deviceID int, user string, device string, commands []string, w
 	}
 }
 
-func connectToDevice(user, device string) (*ssh.Client, error) {
-	pass := "test"
+func connectToDevice(user, password, device string) (*ssh.Client, error) {
+	//pass := "test"
 
 	sshConfig := &ssh.ClientConfig{
 		User: user,
-		Auth: []ssh.AuthMethod{ssh.Password(pass)},
+		Auth: []ssh.AuthMethod{ssh.Password(password)},
 	}
 	sshConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 
