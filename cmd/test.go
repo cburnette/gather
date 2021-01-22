@@ -66,7 +66,6 @@ func doTest(cmd *cobra.Command, args []string) {
 	var wg sync.WaitGroup
 
 	for t := 0; t < len(devices); t++ {
-		wg.Add(1)
 		go execCommands(t, user, string(password), devices[t], commands, &wg, resultsChannel)
 	}
 
@@ -116,6 +115,7 @@ func execCommands(deviceID int, user string, password string, device string, com
 	defer client.Close()
 
 	for c := 0; c < len(commands); c++ {
+		wg.Add(1)
 		session, err := client.NewSession()
 
 		if err != nil {
@@ -128,6 +128,7 @@ func execCommands(deviceID int, user string, password string, device string, com
 			resultsChannel <- output
 			log.Printf("error creating session for command %s on device %s", commands[c], device)
 			session.Close()
+			wg.Done()
 			continue
 		}
 
@@ -142,6 +143,7 @@ func execCommands(deviceID int, user string, password string, device string, com
 			resultsChannel <- output
 			log.Printf("error executing command %s on device %s", commands[c], device)
 			session.Close()
+			wg.Done()
 			continue
 		}
 
@@ -154,6 +156,7 @@ func execCommands(deviceID int, user string, password string, device string, com
 
 		resultsChannel <- output
 		session.Close()
+		wg.Done()
 	}
 }
 
