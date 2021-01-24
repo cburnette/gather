@@ -22,6 +22,9 @@ type output struct {
 	output   string
 }
 
+var mutex = &sync.Mutex{}
+var results []output
+
 // testCmd represents the test command
 var testCmd = &cobra.Command{
 	Use:   "test",
@@ -73,26 +76,25 @@ func doTest(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 
-	var results []output
-	resultsChannel := make(chan output)
+	//resultsChannel := make(chan output)
 	var wg sync.WaitGroup
 
 	wg.Add(len(devices))
 	for t := 0; t < len(devices); t++ {
-		go execCommands(t, user, string(password), devices[t], commands, &wg, resultsChannel)
+		go execCommands(t, user, string(password), devices[t], commands, &wg)
 	}
 
-	go func() {
-		for v := range resultsChannel {
-			results = append(results, v)
-		}
-	}()
+	// go func() {
+	// 	for v := range resultsChannel {
+	// 		results = append(results, v)
+	// 	}
+	// }()
 
 	for len(results) < len(devices)*len(commands) {
 		wg.Wait()
 	}
 
-	close(resultsChannel)
+	//close(resultsChannel)
 
 	sort.SliceStable(results, func(i, j int) bool {
 		return results[i].deviceID < results[j].deviceID
@@ -107,6 +109,12 @@ func doTest(cmd *cobra.Command, args []string) {
 	// }
 
 	writeOutputFile(results, outputFile)
+}
+
+func addResult(o output) {
+	mutex.Lock()
+	results = append(results, o)
+	mutex.Unlock()
 }
 
 func writeOutputFile(results []output, outputFile string) {
@@ -129,7 +137,7 @@ func writeOutputFile(results []output, outputFile string) {
 	}
 }
 
-func execCommands(deviceID int, user string, password string, device string, commands []string, wg *sync.WaitGroup, resultsChannel chan output) {
+func execCommands(deviceID int, user string, password string, device string, commands []string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	client, err := connectToDevice(user, password, device)
@@ -141,7 +149,8 @@ func execCommands(deviceID int, user string, password string, device string, com
 				command:  commands[c],
 				output:   "error connecting to device",
 			}
-			resultsChannel <- output
+			//resultsChannel <- output
+			addResult(output)
 		}
 		log.Printf("error connecting to device %s", device)
 		return
@@ -159,7 +168,8 @@ func execCommands(deviceID int, user string, password string, device string, com
 				command:  commands[c],
 				output:   "error creating session",
 			}
-			resultsChannel <- output
+			//resultsChannel <- output
+			addResult(output)
 			log.Printf("error creating session for command %s on device %s", commands[c], device)
 			session.Close()
 			continue
@@ -173,7 +183,8 @@ func execCommands(deviceID int, user string, password string, device string, com
 				command:  commands[c],
 				output:   "error executing command",
 			}
-			resultsChannel <- output
+			//resultsChannel <- output
+			addResult(output)
 			log.Printf("error executing command %s on device %s", commands[c], device)
 			session.Close()
 			continue
@@ -186,7 +197,8 @@ func execCommands(deviceID int, user string, password string, device string, com
 			output:   string(out),
 		}
 
-		resultsChannel <- output
+		//resultsChannel <- output
+		addResult(output)
 		session.Close()
 	}
 }
