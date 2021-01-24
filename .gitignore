@@ -8,6 +8,8 @@ gather
 
 devices.txt
 commands.txt
+gather.txt
+gather-*.txt
 
 # Test binary, built with `go test -c`
 *.test

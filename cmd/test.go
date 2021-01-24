@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
@@ -39,6 +40,17 @@ func init() {
 }
 
 func doTest(cmd *cobra.Command, args []string) {
+	outputFile, err := rootCmd.PersistentFlags().GetString("output")
+	if err != nil {
+		panic(err)
+	}
+
+	if outputFile == defaultOutputFile {
+		outputFile = fmt.Sprintf("gather-%s.txt", time.Now().UTC().Format(time.RFC3339))
+	}
+	fmt.Printf("Output File:\n")
+	fmt.Printf("%s\n\n", outputFile)
+
 	devices := getDevices()
 	fmt.Printf("Devices:\n")
 	for _, device := range devices {
@@ -86,11 +98,33 @@ func doTest(cmd *cobra.Command, args []string) {
 		return results[i].deviceID < results[j].deviceID
 	})
 
-	fmt.Printf("\n\nOutput\n")
+	// fmt.Printf("\n\nOutput\n")
+	// for r := range results {
+	// 	scanner := bufio.NewScanner(strings.NewReader(results[r].output))
+	// 	for scanner.Scan() {
+	// 		fmt.Printf("%s %s %s %s %s\n", results[r].device, separator, results[r].command, separator, scanner.Text())
+	// 	}
+	// }
+
+	writeOutputFile(results, outputFile)
+}
+
+func writeOutputFile(results []output, outputFile string) {
+	f, err := os.Create(outputFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer f.Close()
+
 	for r := range results {
 		scanner := bufio.NewScanner(strings.NewReader(results[r].output))
 		for scanner.Scan() {
-			fmt.Printf("%s %s %s %s %s\n", results[r].device, separator, results[r].command, separator, scanner.Text())
+			line := fmt.Sprintf("%s %s %s %s %s\n", results[r].device, separator, results[r].command, separator, scanner.Text())
+			_, err := f.WriteString(line)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 	}
 }

@@ -18,6 +18,8 @@ var (
 	separator   string
 )
 
+const defaultOutputFile = "gather-{timestamp}.txt"
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "gather",
@@ -52,7 +54,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gather.yaml)")
 	rootCmd.PersistentFlags().StringVar(&deviceFile, "devices", "devices.txt", "path to file containing list of target devices")
 	rootCmd.PersistentFlags().StringVar(&commandFile, "commands", "commands.txt", "path to file containing list of commands to run on target devices")
-	rootCmd.PersistentFlags().StringVar(&outputFile, "outputFile", "gather-output-latest.txt", "path to create output file; by default will append timestamp")
+	rootCmd.PersistentFlags().StringVar(&outputFile, "output", defaultOutputFile, "path to create output file; by default will append timestamp")
 	rootCmd.PersistentFlags().StringVar(&separator, "separator", "|", "separator between host, command and output")
 
 	// Cobra also supports local flags, which will only run
