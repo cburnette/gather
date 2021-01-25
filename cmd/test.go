@@ -98,8 +98,10 @@ func doTest(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	for len(results) < len(devices) {
-		wg.Wait()
+	if !debug {
+		for len(results) < len(devices) {
+			wg.Wait()
+		}
 	}
 
 	sort.Slice(results, func(i, j int) bool {
@@ -140,7 +142,7 @@ func writeOutputFile(results []device, outputFile string) {
 func execCommands(user string, password string, device device, commands []string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	client, err := connectToDevice(user, password, device.device)
+	client, err := connectToDevice(user, password, device)
 	if err != nil {
 		for c := 0; c < len(commands); c++ {
 			output := output{
@@ -157,7 +159,6 @@ func execCommands(user string, password string, device device, commands []string
 	defer client.Close()
 
 	for _, command := range commands {
-		//for c := 0; c < len(commands); c++ {
 		session, err := client.NewSession()
 
 		if err != nil {
@@ -195,14 +196,14 @@ func execCommands(user string, password string, device device, commands []string
 	addResult(device)
 }
 
-func connectToDevice(user, password, device string) (*ssh.Client, error) {
+func connectToDevice(user, password string, device device) (*ssh.Client, error) {
 	sshConfig := &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{ssh.Password(password)},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
-	client, err := ssh.Dial("tcp", device, sshConfig)
+	client, err := ssh.Dial("tcp", device.device, sshConfig)
 	if err != nil {
 		return nil, err
 	}
