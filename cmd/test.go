@@ -16,15 +16,19 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-type output struct {
+type device struct {
 	deviceID int
 	device   string
-	command  string
-	output   string
+	outputs  []output
+}
+
+type output struct {
+	command string
+	output  string
 }
 
 var mutex = &sync.Mutex{}
-var results []output
+var results []device
 
 // testCmd represents the test command
 var testCmd = &cobra.Command{
@@ -58,7 +62,7 @@ func doTest(cmd *cobra.Command, args []string) {
 	devices := getDevices()
 	fmt.Printf("Devices:\n")
 	for _, device := range devices {
-		fmt.Println(device)
+		fmt.Println(device.device)
 	}
 
 	commands := getCommands()
@@ -87,48 +91,32 @@ func doTest(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 
-	for t := 0; t < len(devices); t++ {
+	for _, device := range devices {
 		if !debug {
-			go execCommands(t, user, string(password), devices[t], commands, &wg)
+			go execCommands(user, string(password), device, commands, &wg)
 		} else {
-			execCommands(t, user, string(password), devices[t], commands, &wg)
+			execCommands(user, string(password), device, commands, &wg)
 		}
 	}
 
-	// go func() {
-	// 	for v := range resultsChannel {
-	// 		results = append(results, v)
-	// 	}
-	// }()
-
-	for len(results) < len(devices)*len(commands) {
+	for len(results) < len(devices) {
 		wg.Wait()
 	}
-
-	//close(resultsChannel)
 
 	sort.SliceStable(results, func(i, j int) bool {
 		return results[i].deviceID < results[j].deviceID
 	})
 
-	// fmt.Printf("\n\nOutput\n")
-	// for r := range results {
-	// 	scanner := bufio.NewScanner(strings.NewReader(results[r].output))
-	// 	for scanner.Scan() {
-	// 		fmt.Printf("%s %s %s %s %s\n", results[r].device, separator, results[r].command, separator, scanner.Text())
-	// 	}
-	// }
-
 	writeOutputFile(results, outputFile)
 }
 
-func addResult(o output) {
+func addResult(d device) {
 	mutex.Lock()
-	results = append(results, o)
+	results = append(results, d)
 	mutex.Unlock()
 }
 
-func writeOutputFile(results []output, outputFile string) {
+func writeOutputFile(results []device, outputFile string) {
 	f, err := os.Create(outputFile)
 	if err != nil {
 		log.Fatal(err)
@@ -136,103 +124,76 @@ func writeOutputFile(results []output, outputFile string) {
 
 	defer f.Close()
 
-	for r := range results {
-		scanner := bufio.NewScanner(strings.NewReader(results[r].output))
-		for scanner.Scan() {
-			line := fmt.Sprintf("%s %s %s %s %s\n", results[r].device, separator, results[r].command, separator, scanner.Text())
-			_, err := f.WriteString(line)
-			if err != nil {
-				log.Fatal(err)
+	for _, device := range results {
+		for _, output := range device.outputs {
+			scanner := bufio.NewScanner(strings.NewReader(output.output))
+			for scanner.Scan() {
+				line := fmt.Sprintf("%s %s %s %s %s\n", device.device, separator, output.command, separator, scanner.Text())
+				_, err := f.WriteString(line)
+				if err != nil {
+					log.Fatal(err)
+				}
 			}
 		}
 	}
 }
 
-func execCommands(deviceID int, user string, password string, device string, commands []string, wg *sync.WaitGroup) {
+func execCommands(user string, password string, device device, commands []string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	client, err := connectToDevice(user, password, device)
+	client, err := connectToDevice(user, password, device.device)
 	if err != nil {
 		for c := 0; c < len(commands); c++ {
 			output := output{
-				deviceID: deviceID,
-				device:   device,
-				command:  commands[c],
-				output:   err.Error(),
+				command: commands[c],
+				output:  err.Error(),
 			}
-			//resultsChannel <- output
-			addResult(output)
+			device.outputs = append(device.outputs, output)
 		}
+		addResult(device)
 		log.Printf(err.Error())
 		return
 	}
 
 	defer client.Close()
 
-	for c := 0; c < len(commands); c++ {
+	for _, command := range commands {
+		//for c := 0; c < len(commands); c++ {
 		session, err := client.NewSession()
 
 		if err != nil {
 			output := output{
-				deviceID: deviceID,
-				device:   device,
-				command:  commands[c],
-				output:   err.Error(),
+				command: command,
+				output:  err.Error(),
 			}
-			//resultsChannel <- output
-			addResult(output)
-			log.Printf("%s %s %s %s %s\n", device, separator, commands[c], separator, err.Error())
-			//log.Printf("error creating session for command %s on device %s", commands[c], device)
+			device.outputs = append(device.outputs, output)
+			log.Printf("%s %s %s %s %s\n", device.device, separator, command, separator, err.Error())
 			session.Close()
 			continue
 		}
 
 		var b bytes.Buffer
 		session.Stdout = &b
-		if err := session.Run(commands[c]); err != nil {
-			//log.Fatal("Failed to run: " + err.Error())
+		if err := session.Run(command); err != nil {
 			output := output{
-				deviceID: deviceID,
-				device:   device,
-				command:  commands[c],
-				output:   err.Error(),
+				command: command,
+				output:  err.Error(),
 			}
-			//resultsChannel <- output
-			addResult(output)
-			log.Printf("%s %s %s %s %s\n", device, separator, commands[c], separator, err.Error())
-			//log.Printf("error executing command %s on device %s", commands[c], device)
+			device.outputs = append(device.outputs, output)
+			log.Printf("%s %s %s %s %s\n", device.device, separator, command, separator, err.Error())
 			session.Close()
 			continue
 		}
-		//fmt.Println(b.String())
-
-		// out, err := session.Output(commands[c])
-		// if err != nil {
-		// 	output := output{
-		// 		deviceID: deviceID,
-		// 		device:   device,
-		// 		command:  commands[c],
-		// 		output:   err.Error(),
-		// 	}
-		// 	//resultsChannel <- output
-		// 	addResult(output)
-		// 	log.Printf("%s %s %s %s %s\n", device, separator, commands[c], separator, err.Error())
-		// 	//log.Printf("error executing command %s on device %s", commands[c], device)
-		// 	session.Close()
-		// 	continue
-		// }
 
 		output := output{
-			deviceID: deviceID,
-			device:   device,
-			command:  commands[c],
-			output:   string(b.String()),
+			command: command,
+			output:  string(b.String()),
 		}
 
-		//resultsChannel <- output
-		addResult(output)
+		device.outputs = append(device.outputs, output)
 		session.Close()
 	}
+	addResult(device)
 }
 
 func connectToDevice(user, password, device string) (*ssh.Client, error) {
@@ -250,7 +211,7 @@ func connectToDevice(user, password, device string) (*ssh.Client, error) {
 	return client, nil
 }
 
-func getDevices() []string {
+func getDevices() []device {
 	deviceFile, err := rootCmd.PersistentFlags().GetString("devices")
 	if err != nil {
 		panic(err)
@@ -263,17 +224,25 @@ func getDevices() []string {
 
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
-	var devices []string
+	var devices []device
 
+	i := 0
 	for scanner.Scan() {
-		device := scanner.Text()
-		if !strings.HasPrefix(device, "#") {
-			parts := strings.Split(device, ":")
+		deviceName := scanner.Text()
+		if !strings.HasPrefix(deviceName, "#") {
+			parts := strings.Split(deviceName, ":")
 			if len(parts) == 1 {
-				device = device + ":22"
+				deviceName = deviceName + ":22"
 			}
-			devices = append(devices, device)
+
+			newDevice := device{
+				deviceID: i,
+				device:   deviceName,
+				outputs:  []output{},
+			}
+			devices = append(devices, newDevice)
 		}
+		i++
 	}
 
 	return devices
