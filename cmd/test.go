@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"log"
 	"os"
@@ -147,12 +148,12 @@ func execCommands(deviceID int, user string, password string, device string, com
 				deviceID: deviceID,
 				device:   device,
 				command:  commands[c],
-				output:   "error connecting to device",
+				output:   err.Error(),
 			}
 			//resultsChannel <- output
 			addResult(output)
 		}
-		log.Printf("error connecting to device %s", device)
+		log.Printf(err.Error())
 		return
 	}
 
@@ -166,35 +167,56 @@ func execCommands(deviceID int, user string, password string, device string, com
 				deviceID: deviceID,
 				device:   device,
 				command:  commands[c],
-				output:   "error creating session",
+				output:   err.Error(),
 			}
 			//resultsChannel <- output
 			addResult(output)
-			log.Printf("error creating session for command %s on device %s", commands[c], device)
+			log.Printf("%s %s %s %s %s\n", device, separator, commands[c], separator, err.Error())
+			//log.Printf("error creating session for command %s on device %s", commands[c], device)
 			session.Close()
 			continue
 		}
 
-		out, err := session.CombinedOutput(commands[c])
-		if err != nil {
+		var b bytes.Buffer
+		session.Stdout = &b
+		if err := session.Run(commands[c]); err != nil {
+			//log.Fatal("Failed to run: " + err.Error())
 			output := output{
 				deviceID: deviceID,
 				device:   device,
 				command:  commands[c],
-				output:   "error executing command",
+				output:   err.Error(),
 			}
 			//resultsChannel <- output
 			addResult(output)
-			log.Printf("error executing command %s on device %s", commands[c], device)
+			log.Printf("%s %s %s %s %s\n", device, separator, commands[c], separator, err.Error())
+			//log.Printf("error executing command %s on device %s", commands[c], device)
 			session.Close()
 			continue
 		}
+		//fmt.Println(b.String())
+
+		// out, err := session.Output(commands[c])
+		// if err != nil {
+		// 	output := output{
+		// 		deviceID: deviceID,
+		// 		device:   device,
+		// 		command:  commands[c],
+		// 		output:   err.Error(),
+		// 	}
+		// 	//resultsChannel <- output
+		// 	addResult(output)
+		// 	log.Printf("%s %s %s %s %s\n", device, separator, commands[c], separator, err.Error())
+		// 	//log.Printf("error executing command %s on device %s", commands[c], device)
+		// 	session.Close()
+		// 	continue
+		// }
 
 		output := output{
 			deviceID: deviceID,
 			device:   device,
 			command:  commands[c],
-			output:   string(out),
+			output:   string(b.String()),
 		}
 
 		//resultsChannel <- output
@@ -205,10 +227,10 @@ func execCommands(deviceID int, user string, password string, device string, com
 
 func connectToDevice(user, password, device string) (*ssh.Client, error) {
 	sshConfig := &ssh.ClientConfig{
-		User: user,
-		Auth: []ssh.AuthMethod{ssh.Password(password)},
+		User:            user,
+		Auth:            []ssh.AuthMethod{ssh.Password(password)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
-	sshConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 
 	client, err := ssh.Dial("tcp", device, sshConfig)
 	if err != nil {
