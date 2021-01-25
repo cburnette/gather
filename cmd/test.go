@@ -118,25 +118,28 @@ func addResult(d device) {
 }
 
 func writeOutputFile(results []device, outputFile string) {
-	f, err := os.Create(outputFile)
+	f, err := os.OpenFile(outputFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	defer f.Close()
 
+	writer := bufio.NewWriter(f)
+
 	for _, device := range results {
 		for _, output := range device.outputs {
 			scanner := bufio.NewScanner(strings.NewReader(output.output))
 			for scanner.Scan() {
-				line := fmt.Sprintf("%s %s %s %s %s\n", device.device, separator, output.command, separator, scanner.Text())
-				_, err := f.WriteString(line)
+				_, err = writer.WriteString(fmt.Sprintf("%s %s %s %s %s\n", device.device, separator, output.command, separator, scanner.Text()))
 				if err != nil {
 					log.Fatal(err)
 				}
 			}
 		}
 	}
+
+	writer.Flush()
 }
 
 func execCommands(user string, password string, device device, commands []string, wg *sync.WaitGroup) {
@@ -187,7 +190,7 @@ func execCommands(user string, password string, device device, commands []string
 
 		output := output{
 			command: command,
-			output:  string(b.String()),
+			output:  b.String(),
 		}
 
 		device.outputs = append(device.outputs, output)
