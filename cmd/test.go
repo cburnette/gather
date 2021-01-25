@@ -102,7 +102,7 @@ func doTest(cmd *cobra.Command, args []string) {
 		wg.Wait()
 	}
 
-	sort.SliceStable(results, func(i, j int) bool {
+	sort.Slice(results, func(i, j int) bool {
 		return results[i].deviceID < results[j].deviceID
 	})
 
