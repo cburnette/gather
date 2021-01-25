@@ -82,7 +82,6 @@ func doTest(cmd *cobra.Command, args []string) {
 	}
 	fmt.Println()
 
-	//resultsChannel := make(chan output)
 	var wg sync.WaitGroup
 	wg.Add(len(devices))
 
