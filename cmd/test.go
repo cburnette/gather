@@ -76,13 +76,23 @@ func doTest(cmd *cobra.Command, args []string) {
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println()
 
 	//resultsChannel := make(chan output)
 	var wg sync.WaitGroup
-
 	wg.Add(len(devices))
+
+	debug, err := rootCmd.PersistentFlags().GetBool("debug")
+	if err != nil {
+		panic(err)
+	}
+
 	for t := 0; t < len(devices); t++ {
-		go execCommands(t, user, string(password), devices[t], commands, &wg)
+		if !debug {
+			go execCommands(t, user, string(password), devices[t], commands, &wg)
+		} else {
+			execCommands(t, user, string(password), devices[t], commands, &wg)
+		}
 	}
 
 	// go func() {
