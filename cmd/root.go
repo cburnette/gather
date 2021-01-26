@@ -60,7 +60,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&outputFile, "output", defaultOutputFile, "path to create output file; by default will append timestamp")
 	rootCmd.PersistentFlags().StringVar(&knownHostsFile, "knownHosts", defaultKnownHostsFile, "path to SSH known_hosts file")
 	rootCmd.PersistentFlags().StringVar(&separator, "separator", "|", "separator between host, command and output")
-	rootCmd.PersistentFlags().BoolP("debug", "d", false, "enable debug mode (no concurrency, increased logging)")
+	rootCmd.PersistentFlags().BoolP("insecure", "i", false, "insecure mode (ignore host key)")
+	rootCmd.PersistentFlags().BoolP("debug", "d", false, "debug mode (no concurrency, increased logging)")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.

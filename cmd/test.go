@@ -15,6 +15,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	kh "golang.org/x/crypto/ssh/knownhosts"
 	"golang.org/x/crypto/ssh/terminal"
+	//kh "golang.org/x/crypto/ssh/knownhosts"
 )
 
 type device struct {
@@ -201,31 +202,46 @@ func execCommands(user string, password string, device device, commands []string
 }
 
 func connectToDevice(user, password string, device device) (*ssh.Client, error) {
-
-	knownHostsFile, err := rootCmd.PersistentFlags().GetString("knownHosts")
+	insecure, err := rootCmd.PersistentFlags().GetBool("insecure")
 	if err != nil {
 		panic(err)
 	}
 
-	if knownHostsFile == defaultKnownHostsFile {
-		home, err := os.UserHomeDir()
+	var sshConfig *ssh.ClientConfig
+
+	if insecure {
+		sshConfig = &ssh.ClientConfig{
+			User:            user,
+			Auth:            []ssh.AuthMethod{ssh.Password(password)},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			Timeout:         5 * time.Second,
+		}
+	} else {
+		knownHostsFile, err := rootCmd.PersistentFlags().GetString("knownHosts")
 		if err != nil {
 			panic(err)
 		}
 
-		knownHostsFile = fmt.Sprintf("%s/.ssh/known_hosts", home)
-	}
+		if knownHostsFile == defaultKnownHostsFile {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				panic(err)
+			}
 
-	hostKeyCallback, err := kh.New(knownHostsFile)
-	if err != nil {
-		log.Fatal("could not create hostkeycallback function: ", err)
-	}
+			knownHostsFile = fmt.Sprintf("%s/.ssh/known_hosts", home)
+		}
 
-	sshConfig := &ssh.ClientConfig{
-		User:            user,
-		Auth:            []ssh.AuthMethod{ssh.Password(password)},
-		HostKeyCallback: hostKeyCallback,
-		Timeout:         5 * time.Second,
+		hostKeyCallback, err := kh.New(knownHostsFile)
+		if err != nil {
+			panic(err)
+		}
+
+		sshConfig = &ssh.ClientConfig{
+			User:            user,
+			Auth:            []ssh.AuthMethod{ssh.Password(password)},
+			HostKeyCallback: hostKeyCallback,
+			Timeout:         5 * time.Second,
+		}
 	}
 
 	client, err := ssh.Dial("tcp", device.device, sshConfig)
