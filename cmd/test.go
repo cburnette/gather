@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
+	kh "golang.org/x/crypto/ssh/knownhosts"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -118,7 +119,7 @@ func addResult(d device) {
 }
 
 func writeOutputFile(results []device, outputFile string) {
-	f, err := os.OpenFile(outputFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.Create(outputFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -200,10 +201,16 @@ func execCommands(user string, password string, device device, commands []string
 }
 
 func connectToDevice(user, password string, device device) (*ssh.Client, error) {
+	hostKeyCallback, err := kh.New("/Users/cburnette/.ssh/known_hosts")
+	if err != nil {
+		log.Fatal("could not create hostkeycallback function: ", err)
+	}
+
 	sshConfig := &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{ssh.Password(password)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: hostKeyCallback,
+		Timeout:         5 * time.Second,
 	}
 
 	client, err := ssh.Dial("tcp", device.device, sshConfig)
