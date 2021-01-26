@@ -11,15 +11,17 @@ import (
 )
 
 var (
-	cfgFile     string
-	deviceFile  string
-	commandFile string
-	outputFile  string
-	separator   string
-	debug       bool
+	cfgFile        string
+	deviceFile     string
+	commandFile    string
+	outputFile     string
+	knownHostsFile string
+	separator      string
+	debug          bool
 )
 
 const defaultOutputFile = "gather-{timestamp}.txt"
+const defaultKnownHostsFile = "$HOME/.ssh/known_hosts"
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -56,6 +58,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&deviceFile, "devices", "devices.txt", "path to file containing list of target devices")
 	rootCmd.PersistentFlags().StringVar(&commandFile, "commands", "commands.txt", "path to file containing list of commands to run on target devices")
 	rootCmd.PersistentFlags().StringVar(&outputFile, "output", defaultOutputFile, "path to create output file; by default will append timestamp")
+	rootCmd.PersistentFlags().StringVar(&knownHostsFile, "knownHosts", defaultKnownHostsFile, "path to SSH known_hosts file")
 	rootCmd.PersistentFlags().StringVar(&separator, "separator", "|", "separator between host, command and output")
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "enable debug mode (no concurrency, increased logging)")
 

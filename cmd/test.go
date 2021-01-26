@@ -201,7 +201,22 @@ func execCommands(user string, password string, device device, commands []string
 }
 
 func connectToDevice(user, password string, device device) (*ssh.Client, error) {
-	hostKeyCallback, err := kh.New("/Users/cburnette/.ssh/known_hosts")
+
+	knownHostsFile, err := rootCmd.PersistentFlags().GetString("knownHosts")
+	if err != nil {
+		panic(err)
+	}
+
+	if knownHostsFile == defaultKnownHostsFile {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			panic(err)
+		}
+
+		knownHostsFile = fmt.Sprintf("%s/.ssh/known_hosts", home)
+	}
+
+	hostKeyCallback, err := kh.New(knownHostsFile)
 	if err != nil {
 		log.Fatal("could not create hostkeycallback function: ", err)
 	}
