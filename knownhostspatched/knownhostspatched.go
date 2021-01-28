@@ -200,11 +200,28 @@ func parseLine(line []byte) (marker, host string, key ssh.PublicKey, err error) 
 	return marker, host, key, nil
 }
 
-func (db *hostKeyDB) parseLine(line []byte, filename string, linenum int) error {
+func (db *hostKeyDB) parseLine(line []byte, filename string, linenum int, hostWhitelist []string) error {
 	marker, pattern, key, err := parseLine(line)
 	if err != nil {
 		return err
 	}
+
+	//added by cburnette
+	//ignore any hosts that are not in the whitelist
+	allowed := false
+	for _, whitelistHost := range hostWhitelist {
+		if strings.Contains(pattern, whitelistHost) {
+			allowed = true
+			break
+		}
+	}
+
+	if !allowed {
+		//fmt.Printf("rejected host: %s\n", pattern)
+		return nil
+	}
+
+	fmt.Printf("known host: %s\n", pattern)
 
 	if marker == markerRevoked {
 		db.revoked[string(key.Marshal())] = &KnownKey{
@@ -382,7 +399,7 @@ func (db *hostKeyDB) checkAddr(a addr, remoteKey ssh.PublicKey) error {
 }
 
 // The Read function parses file contents.
-func (db *hostKeyDB) Read(r io.Reader, filename string) error {
+func (db *hostKeyDB) Read(r io.Reader, filename string, hostWhitelist []string) error {
 	scanner := bufio.NewScanner(r)
 
 	lineNum := 0
@@ -394,7 +411,7 @@ func (db *hostKeyDB) Read(r io.Reader, filename string) error {
 			continue
 		}
 
-		if err := db.parseLine(line, filename, lineNum); err != nil {
+		if err := db.parseLine(line, filename, lineNum, hostWhitelist); err != nil {
 			return fmt.Errorf("knownhosts: %s:%d: %v", filename, lineNum, err)
 		}
 	}
@@ -415,7 +432,7 @@ func New(hostWhitelist []string, files ...string) (ssh.HostKeyCallback, error) {
 			return nil, err
 		}
 		defer f.Close()
-		if err := db.Read(f, fn); err != nil {
+		if err := db.Read(f, fn, hostWhitelist); err != nil {
 			return nil, err
 		}
 	}

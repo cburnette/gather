@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/terminal"
 
 	//kh "golang.org/x/crypto/ssh/knownhosts"
 	kh "github.com/cburnette/gather/knownhostspatched"
@@ -58,12 +59,15 @@ func doTest(cmd *cobra.Command, args []string) {
 	if outputFile == defaultOutputFile {
 		outputFile = fmt.Sprintf("gather-%s.txt", time.Now().UTC().Format(time.RFC3339))
 	}
-	fmt.Printf("Output File:\n")
+	fmt.Printf("Output File: ")
 	fmt.Printf("%s\n\n", outputFile)
 
+	var hostsWhitelist []string
 	devices := getDevices()
 	fmt.Printf("Devices:\n")
 	for _, device := range devices {
+		deviceWithoutPort := strings.Split(device.device, ":")[0]
+		hostsWhitelist = append(hostsWhitelist, deviceWithoutPort)
 		fmt.Println(device.device)
 	}
 
@@ -72,32 +76,31 @@ func doTest(cmd *cobra.Command, args []string) {
 	for _, command := range commands {
 		fmt.Println(command)
 	}
+	fmt.Println()
 
-	// var user string
-	// fmt.Print("\nuser: ")
-	// fmt.Scanf("%s", &user)
+	var user string
+	fmt.Print("\nuser: ")
+	fmt.Scanf("%s", &user)
 
-	// fmt.Print("password: ")
-	// password, err := terminal.ReadPassword(0)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// fmt.Println()
+	fmt.Print("password: ")
+	password, err := terminal.ReadPassword(0)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println()
 
-	user := "test"
-	password := []byte("test")
+	// user := "test"
+	// password := []byte("test")
 
 	var wg sync.WaitGroup
 	wg.Add(len(devices))
-
-	readKnownHosts()
 
 	debug, err := rootCmd.PersistentFlags().GetBool("debug")
 	if err != nil {
 		panic(err)
 	}
 
-	sshConfig := buildSSHConfig(user, string(password))
+	sshConfig := buildSSHConfig(user, string(password), hostsWhitelist)
 
 	for _, device := range devices {
 		if !debug {
@@ -122,39 +125,6 @@ func doTest(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 	writeOutputFile(results, outputFile, separator)
-}
-
-func readKnownHosts() {
-	knownHostsFile, err := rootCmd.PersistentFlags().GetString("knownHosts")
-	if err != nil {
-		panic(err)
-	}
-
-	if knownHostsFile == defaultKnownHostsFile {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			panic(err)
-		}
-
-		knownHostsFile = fmt.Sprintf("%s/.ssh/known_hosts", home)
-	}
-
-	file, err := os.Open(knownHostsFile)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	scanner := bufio.NewScanner(file)
-	scanner.Split(bufio.ScanLines)
-	//var devices []device
-
-	for scanner.Scan() {
-		entry := scanner.Bytes()
-		_, hosts, _, _, _, _ := ssh.ParseKnownHosts(entry)
-
-		fmt.Printf("%s: %s\n\n", hosts, len(hosts))
-
-	}
 }
 
 func addResult(d device) {
@@ -245,7 +215,7 @@ func execCommands(device device, sshConfig *ssh.ClientConfig, commands []string,
 	addResult(device)
 }
 
-func buildSSHConfig(user, password string) *ssh.ClientConfig {
+func buildSSHConfig(user, password string, hostsWhitelist []string) *ssh.ClientConfig {
 	insecure, err := rootCmd.PersistentFlags().GetBool("insecure")
 	if err != nil {
 		panic(err)
@@ -275,7 +245,7 @@ func buildSSHConfig(user, password string) *ssh.ClientConfig {
 			knownHostsFile = fmt.Sprintf("%s/.ssh/known_hosts", home)
 		}
 
-		hostKeyCallback, err := kh.New(knownHostsFile)
+		hostKeyCallback, err := kh.New(hostsWhitelist, knownHostsFile)
 		if err != nil {
 			panic(err)
 		}
@@ -319,6 +289,8 @@ func getDevices() []device {
 	i := 0
 	for scanner.Scan() {
 		deviceName := scanner.Text()
+		deviceName = strings.TrimSpace(deviceName)
+
 		if !strings.HasPrefix(deviceName, "#") {
 			parts := strings.Split(deviceName, ":")
 			if len(parts) == 1 {
