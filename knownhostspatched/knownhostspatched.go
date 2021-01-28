@@ -203,7 +203,10 @@ func parseLine(line []byte) (marker, host string, key ssh.PublicKey, err error) 
 func (db *hostKeyDB) parseLine(line []byte, filename string, linenum int, hostWhitelist []string) error {
 	marker, pattern, key, err := parseLine(line)
 	if err != nil {
-		return err
+		//return err
+		//added by cburnette
+		//for any error whatsoever simply skip line by returning nil
+		return nil
 	}
 
 	//added by cburnette
@@ -249,7 +252,10 @@ func (db *hostKeyDB) parseLine(line []byte, filename string, linenum int, hostWh
 	}
 
 	if err != nil {
-		return err
+		//return err
+		//added by cburnette
+		//for any error whatsoever simply skip line by returning nil
+		return nil
 	}
 
 	db.lines = append(db.lines, entry)
