@@ -88,6 +88,7 @@ func doTest(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 	fmt.Println()
+	fmt.Println()
 
 	// user := "test"
 	// password := []byte("test")
@@ -101,6 +102,7 @@ func doTest(cmd *cobra.Command, args []string) {
 	}
 
 	sshConfig := buildSSHConfig(user, string(password), hostsWhitelist)
+	fmt.Println()
 
 	for _, device := range devices {
 		if !debug {
