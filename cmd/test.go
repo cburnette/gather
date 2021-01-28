@@ -13,9 +13,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
-	kh "golang.org/x/crypto/ssh/knownhosts"
-	"golang.org/x/crypto/ssh/terminal"
+
 	//kh "golang.org/x/crypto/ssh/knownhosts"
+	kh "github.com/cburnette/gather/knownhostspatched"
 )
 
 type device struct {
@@ -73,30 +73,37 @@ func doTest(cmd *cobra.Command, args []string) {
 		fmt.Println(command)
 	}
 
-	var user string
-	fmt.Print("\nuser: ")
-	fmt.Scanf("%s", &user)
+	// var user string
+	// fmt.Print("\nuser: ")
+	// fmt.Scanf("%s", &user)
 
-	fmt.Print("password: ")
-	password, err := terminal.ReadPassword(0)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println()
+	// fmt.Print("password: ")
+	// password, err := terminal.ReadPassword(0)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// fmt.Println()
+
+	user := "test"
+	password := []byte("test")
 
 	var wg sync.WaitGroup
 	wg.Add(len(devices))
+
+	readKnownHosts()
 
 	debug, err := rootCmd.PersistentFlags().GetBool("debug")
 	if err != nil {
 		panic(err)
 	}
 
+	sshConfig := buildSSHConfig(user, string(password))
+
 	for _, device := range devices {
 		if !debug {
-			go execCommands(user, string(password), device, commands, &wg)
+			go execCommands(device, sshConfig, commands, &wg)
 		} else {
-			execCommands(user, string(password), device, commands, &wg)
+			execCommands(device, sshConfig, commands, &wg)
 		}
 	}
 
@@ -110,7 +117,44 @@ func doTest(cmd *cobra.Command, args []string) {
 		return results[i].deviceID < results[j].deviceID
 	})
 
-	writeOutputFile(results, outputFile)
+	separator, err := rootCmd.PersistentFlags().GetString("separator")
+	if err != nil {
+		panic(err)
+	}
+	writeOutputFile(results, outputFile, separator)
+}
+
+func readKnownHosts() {
+	knownHostsFile, err := rootCmd.PersistentFlags().GetString("knownHosts")
+	if err != nil {
+		panic(err)
+	}
+
+	if knownHostsFile == defaultKnownHostsFile {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			panic(err)
+		}
+
+		knownHostsFile = fmt.Sprintf("%s/.ssh/known_hosts", home)
+	}
+
+	file, err := os.Open(knownHostsFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+	//var devices []device
+
+	for scanner.Scan() {
+		entry := scanner.Bytes()
+		_, hosts, _, _, _, _ := ssh.ParseKnownHosts(entry)
+
+		fmt.Printf("%s: %s\n\n", hosts, len(hosts))
+
+	}
 }
 
 func addResult(d device) {
@@ -119,7 +163,7 @@ func addResult(d device) {
 	mutex.Unlock()
 }
 
-func writeOutputFile(results []device, outputFile string) {
+func writeOutputFile(results []device, outputFile string, separator string) {
 	f, err := os.Create(outputFile)
 	if err != nil {
 		log.Fatal(err)
@@ -144,10 +188,10 @@ func writeOutputFile(results []device, outputFile string) {
 	writer.Flush()
 }
 
-func execCommands(user string, password string, device device, commands []string, wg *sync.WaitGroup) {
+func execCommands(device device, sshConfig *ssh.ClientConfig, commands []string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	client, err := connectToDevice(user, password, device)
+	client, err := connectToDevice(device, sshConfig)
 	if err != nil {
 		for c := 0; c < len(commands); c++ {
 			output := output{
@@ -201,7 +245,7 @@ func execCommands(user string, password string, device device, commands []string
 	addResult(device)
 }
 
-func connectToDevice(user, password string, device device) (*ssh.Client, error) {
+func buildSSHConfig(user, password string) *ssh.ClientConfig {
 	insecure, err := rootCmd.PersistentFlags().GetBool("insecure")
 	if err != nil {
 		panic(err)
@@ -243,6 +287,11 @@ func connectToDevice(user, password string, device device) (*ssh.Client, error) 
 			Timeout:         5 * time.Second,
 		}
 	}
+
+	return sshConfig
+}
+
+func connectToDevice(device device, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
 
 	client, err := ssh.Dial("tcp", device.device, sshConfig)
 	if err != nil {
