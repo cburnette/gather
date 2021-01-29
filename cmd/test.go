@@ -173,7 +173,7 @@ func execCommands(device device, sshConfig *ssh.ClientConfig, commands []string,
 			device.outputs = append(device.outputs, output)
 		}
 		addResult(device)
-		log.Printf(err.Error())
+		//log.Printf(err.Error())
 		return
 	}
 
