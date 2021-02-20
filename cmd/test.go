@@ -234,7 +234,7 @@ func buildSSHConfig(hostsWhitelist []string) *ssh.ClientConfig {
 			Timeout:         5 * time.Second,
 		}
 	} else {
-		knownHostsFile, err := rootCmd.PersistentFlags().GetString("knownHosts")
+		knownHostsFile, err := rootCmd.PersistentFlags().GetString("known-hosts")
 		if err != nil {
 			panic(err)
 		}
