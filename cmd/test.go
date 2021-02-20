@@ -78,7 +78,7 @@ func doTest(cmd *cobra.Command, args []string) {
 	for _, command := range commands {
 		fmt.Println(command)
 	}
-	fmt.Println()
+	//fmt.Println()
 
 	fmt.Print("\nuser: ")
 	fmt.Scanf("%s", &user)
