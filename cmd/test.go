@@ -32,6 +32,8 @@ type output struct {
 
 var mutex = &sync.Mutex{}
 var results []device
+var user string
+var password []byte
 
 // testCmd represents the test command
 var testCmd = &cobra.Command{
@@ -78,20 +80,19 @@ func doTest(cmd *cobra.Command, args []string) {
 	}
 	fmt.Println()
 
-	var user string
 	fmt.Print("\nuser: ")
 	fmt.Scanf("%s", &user)
 
 	fmt.Print("password: ")
-	password, err := terminal.ReadPassword(0)
+	password, err = terminal.ReadPassword(0)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println()
 	fmt.Println()
 
-	// user := "test"
-	// password := []byte("test")
+	// user = "test"
+	// password = []byte("test")
 
 	var wg sync.WaitGroup
 	wg.Add(len(devices))
@@ -101,7 +102,7 @@ func doTest(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 
-	sshConfig := buildSSHConfig(user, string(password), hostsWhitelist)
+	sshConfig := buildSSHConfig(hostsWhitelist)
 	fmt.Println()
 
 	for _, device := range devices {
@@ -188,7 +189,7 @@ func execCommands(device device, sshConfig *ssh.ClientConfig, commands []string,
 				output:  err.Error(),
 			}
 			device.outputs = append(device.outputs, output)
-			log.Printf("%s %s %s %s %s\n", device.device, separator, command, separator, err.Error())
+			//log.Printf("%s %s %s %s %s\n", device.device, separator, command, separator, err.Error())
 			session.Close()
 			continue
 		}
@@ -201,7 +202,7 @@ func execCommands(device device, sshConfig *ssh.ClientConfig, commands []string,
 				output:  err.Error(),
 			}
 			device.outputs = append(device.outputs, output)
-			log.Printf("%s %s %s %s %s\n", device.device, separator, command, separator, err.Error())
+			//log.Printf("%s %s %s %s %s\n", device.device, separator, command, separator, err.Error())
 			session.Close()
 			continue
 		}
@@ -217,7 +218,7 @@ func execCommands(device device, sshConfig *ssh.ClientConfig, commands []string,
 	addResult(device)
 }
 
-func buildSSHConfig(user, password string, hostsWhitelist []string) *ssh.ClientConfig {
+func buildSSHConfig(hostsWhitelist []string) *ssh.ClientConfig {
 	insecure, err := rootCmd.PersistentFlags().GetBool("insecure")
 	if err != nil {
 		panic(err)
@@ -228,7 +229,7 @@ func buildSSHConfig(user, password string, hostsWhitelist []string) *ssh.ClientC
 	if insecure {
 		sshConfig = &ssh.ClientConfig{
 			User:            user,
-			Auth:            []ssh.AuthMethod{ssh.Password(password)},
+			Auth:            []ssh.AuthMethod{ssh.Password(string(password))},
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 			Timeout:         5 * time.Second,
 		}
@@ -253,14 +254,27 @@ func buildSSHConfig(user, password string, hostsWhitelist []string) *ssh.ClientC
 		}
 
 		sshConfig = &ssh.ClientConfig{
-			User:            user,
-			Auth:            []ssh.AuthMethod{ssh.Password(password)},
+			User: user,
+			Auth: []ssh.AuthMethod{
+				ssh.Password(string(password)),
+				ssh.KeyboardInteractive(sshInteractive),
+			},
 			HostKeyCallback: hostKeyCallback,
 			Timeout:         5 * time.Second,
 		}
 	}
 
 	return sshConfig
+}
+
+func sshInteractive(user, instruction string, questions []string, echos []bool) (answers []string, err error) {
+	answers = make([]string, len(questions))
+
+	for n := range questions {
+		answers[n] = string(password)
+	}
+
+	return answers, nil
 }
 
 func connectToDevice(device device, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/mbndr/figlet4go"
 	"github.com/spf13/cobra"
 
 	homedir "github.com/mitchellh/go-homedir"
@@ -27,15 +28,20 @@ const defaultKnownHostsFile = "$HOME/.ssh/known_hosts"
 var rootCmd = &cobra.Command{
 	Use:   "gather",
 	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Long:  longDescription(),
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
+}
+
+func longDescription() string {
+	ascii := figlet4go.NewAsciiRender()
+
+	options := figlet4go.NewRenderOptions()
+	options.FontName = "larry3d"
+
+	renderStr, _ := ascii.RenderOpts("RANT", options)
+	return renderStr
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
