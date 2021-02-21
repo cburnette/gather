@@ -228,8 +228,11 @@ func buildSSHConfig(hostsWhitelist []string) *ssh.ClientConfig {
 
 	if insecure {
 		sshConfig = &ssh.ClientConfig{
-			User:            user,
-			Auth:            []ssh.AuthMethod{ssh.Password(string(password))},
+			User: user,
+			Auth: []ssh.AuthMethod{
+				ssh.KeyboardInteractive(sshInteractive),
+				ssh.Password(string(password)),
+			},
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 			Timeout:         5 * time.Second,
 		}
@@ -256,8 +259,8 @@ func buildSSHConfig(hostsWhitelist []string) *ssh.ClientConfig {
 		sshConfig = &ssh.ClientConfig{
 			User: user,
 			Auth: []ssh.AuthMethod{
-				ssh.Password(string(password)),
 				ssh.KeyboardInteractive(sshInteractive),
+				ssh.Password(string(password)),
 			},
 			HostKeyCallback: hostKeyCallback,
 			Timeout:         5 * time.Second,
@@ -269,7 +272,7 @@ func buildSSHConfig(hostsWhitelist []string) *ssh.ClientConfig {
 
 func sshInteractive(user, instruction string, questions []string, echos []bool) (answers []string, err error) {
 	answers = make([]string, len(questions))
-
+	log.Println(questions)
 	for n := range questions {
 		answers[n] = string(password)
 	}
